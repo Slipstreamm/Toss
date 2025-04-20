@@ -358,7 +358,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 title: 'About',
                 icon: Icons.info,
                 children: [
-                  const ListTile(title: Text('LAN File Share'), subtitle: Text('Version 1.0.0')),
+                  const ListTile(title: Text('Toss'), subtitle: Text('Version 1.0.0')),
                   const Divider(),
                   const ListTile(title: Text('A simple app for sharing files over LAN'), subtitle: Text('Created with Flutter')),
                 ],

@@ -54,8 +54,37 @@ dev_dependencies:
   # rules and activating additional ones.
   flutter_lints: ^5.0.0
 
-# For information on the generic Dart part of this file, see the
-# following page: https://dart.dev/tools/pub/pubspec
+flutter_launcher_icons:
+  # Android
+  android: true
+  image_path_android: "assets/icons/toss.png"
+  adaptive_icon_background: "#ffffff"
+  adaptive_icon_foreground: "assets/icons/toss_transparent.png"
+  adaptive_icon_monochrome: "assets/icons/toss_transparent_invert.png"
+  min_sdk_android: 21
+
+  # iOS
+  ios: true
+  image_path_ios_dark_transparent: "assets/icons/toss_transparent_invert.png"
+  image_path_ios: "assets/icons/toss.png"
+  remove_alpha_ios: true
+  background_color_ios: "#ffffff"
+
+  # Web
+  web:
+    generate: true
+    image_path: "assets/icons/toss.png"
+
+  # Windows
+  windows:
+    generate: true
+    image_path: "assets/icons/toss.png"
+    icon_size: 256
+
+  # MacOS
+  macos:
+    generate: true
+    image_path: "assets/icons/toss.png"
 
 # The following section is specific to Flutter packages.
 flutter:

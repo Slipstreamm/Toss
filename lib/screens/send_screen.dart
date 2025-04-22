@@ -374,82 +374,88 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              Text('Send Content', style: Theme.of(context).textTheme.headlineMedium),
-              const SizedBox(height: 20),
+    return GestureDetector(
+      onTap: () {
+        // Dismiss keyboard when tapping outside of text fields
+        FocusScope.of(context).unfocus();
+      },
+      child: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text('Send Content', style: Theme.of(context).textTheme.headlineMedium),
+                const SizedBox(height: 20),
 
-              ElevatedButton.icon(
-                icon: const Icon(Icons.attach_file),
-                label: const Text('Select Content to Send'),
-                onPressed: _showFileSourceMenu,
-                style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12)),
-              ),
+                ElevatedButton.icon(
+                  icon: const Icon(Icons.attach_file),
+                  label: const Text('Select Content to Send'),
+                  onPressed: _showFileSourceMenu,
+                  style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12)),
+                ),
 
-              if (_selectedFile != null)
-                Padding(padding: const EdgeInsets.symmetric(vertical: 8.0), child: Text('Selected file: ${_selectedFile!.name}'))
-              else if (_textToSend != null)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 8.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Text to send (${_textToSend!.length} characters):', style: const TextStyle(fontWeight: FontWeight.bold)),
-                      const SizedBox(height: 4),
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(border: Border.all(color: Colors.grey), borderRadius: BorderRadius.circular(4)),
-                        child: Text(_textToSend!.length > 100 ? '${_textToSend!.substring(0, 100)}...' : _textToSend!, style: const TextStyle(fontSize: 14)),
-                      ),
-                      TextButton(onPressed: _showTextInputDialog, child: const Text('Edit Text')),
-                    ],
+                if (_selectedFile != null)
+                  Padding(padding: const EdgeInsets.symmetric(vertical: 8.0), child: Text('Selected file: ${_selectedFile!.name}'))
+                else if (_textToSend != null)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Text to send (${_textToSend!.length} characters):', style: const TextStyle(fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 4),
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(border: Border.all(color: Colors.grey), borderRadius: BorderRadius.circular(4)),
+                          child: Text(_textToSend!.length > 100 ? '${_textToSend!.substring(0, 100)}...' : _textToSend!, style: const TextStyle(fontSize: 14)),
+                        ),
+                        TextButton(onPressed: _showTextInputDialog, child: const Text('Edit Text')),
+                      ],
+                    ),
+                  ),
+
+                const SizedBox(height: 10),
+
+                TextField(
+                  controller: _ipController,
+                  decoration: InputDecoration(
+                    labelText: 'Enter Target IP Address (without port)',
+                    hintText: 'e.g., 192.168.1.100',
+                    helperText: 'Enter only the IP address - port is configured in settings',
+                    border: const OutlineInputBorder(),
+                    errorText: _ipError,
+                  ),
+                  keyboardType: TextInputType.text, // Suggest text keyboard
+                  onChanged: (value) {
+                    // Update state to re-evaluate button enabled state
+                    setState(() {
+                      // Clear error when user types
+                      if (_ipError != null) {
+                        _ipError = null;
+                      }
+                      // No need to do anything else, just triggering setState
+                      // will cause the build method to re-evaluate the button's onPressed
+                    });
+                  },
+                ),
+
+                const SizedBox(height: 20),
+
+                Center(
+                  child: ElevatedButton.icon(
+                    icon: const Icon(Icons.send),
+                    label: const Text('Send'),
+                    onPressed:
+                        ((_selectedFile == null && _textToSend == null) || _ipController.text.isEmpty)
+                            ? null // Disable if no content or IP
+                            : _sendFile,
+                    style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 15)),
                   ),
                 ),
-
-              const SizedBox(height: 10),
-
-              TextField(
-                controller: _ipController,
-                decoration: InputDecoration(
-                  labelText: 'Enter Target IP Address (without port)',
-                  hintText: 'e.g., 192.168.1.100',
-                  helperText: 'Enter only the IP address - port is configured in settings',
-                  border: const OutlineInputBorder(),
-                  errorText: _ipError,
-                ),
-                keyboardType: TextInputType.number, // Suggest numeric keyboard
-                onChanged: (value) {
-                  // Update state to re-evaluate button enabled state
-                  setState(() {
-                    // Clear error when user types
-                    if (_ipError != null) {
-                      _ipError = null;
-                    }
-                    // No need to do anything else, just triggering setState
-                    // will cause the build method to re-evaluate the button's onPressed
-                  });
-                },
-              ),
-
-              const SizedBox(height: 20),
-
-              Center(
-                child: ElevatedButton.icon(
-                  icon: const Icon(Icons.send),
-                  label: const Text('Send'),
-                  onPressed:
-                      ((_selectedFile == null && _textToSend == null) || _ipController.text.isEmpty)
-                          ? null // Disable if no content or IP
-                          : _sendFile,
-                  style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 15)),
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

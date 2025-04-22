@@ -142,10 +142,6 @@ flutter:
 
 # Platform-specific dependencies
 dependency_overrides:
-  photo_manager:
-    git:
-      url: https://github.com/fluttercandies/flutter_photo_manager
-      ref: main
-    platforms:
-      android: any
-      ios: any
+  # We're using conditional imports in the code to handle platform differences
+  # This ensures photo_manager is only used on mobile platforms
+  photo_manager: ^2.8.1

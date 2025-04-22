@@ -7,7 +7,7 @@ import 'package:path/path.dart' as path;
 
 /// Service for interacting with the device's photo gallery
 /// This implementation is used on mobile platforms (Android/iOS)
-class PhotoGalleryService {
+class PhotoGalleryServiceImpl {
   /// Save an image to the device's photo gallery
   static Future<bool> saveImageToGallery(String filePath) async {
     try {

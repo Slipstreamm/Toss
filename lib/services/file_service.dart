@@ -4,11 +4,13 @@ import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:photo_manager/photo_manager.dart';
 import 'package:open_file/open_file.dart';
 import '../models/settings_model.dart';
 import '../models/transfer_models.dart';
 import 'settings_service.dart';
+
+// Import the platform-specific photo gallery service
+import 'photo_gallery_service.dart';
 
 class FileService {
   final SettingsService _settingsService = SettingsService();
@@ -199,26 +201,8 @@ class FileService {
         return false;
       }
 
-      // Request permission
-      final PermissionState permission = await PhotoManager.requestPermissionExtend();
-      if (!permission.isAuth) {
-        debugPrint('Permission to access photo gallery denied');
-        return false;
-      }
-
-      // Get file info
-      final String title = path.basename(filePath);
-      final String? mimeType = _getMimeType(filePath);
-
-      if (mimeType == null) {
-        debugPrint('Unknown file type, cannot save to gallery');
-        return false;
-      }
-
-      // Save to gallery
-      final AssetEntity? asset = await PhotoManager.editor.saveImageWithPath(filePath, title: title);
-
-      return asset != null;
+      // Use the platform-specific implementation
+      return await PhotoGalleryService.saveImageToGallery(filePath);
     } catch (e) {
       debugPrint('Error saving to photo gallery: $e');
       return false;
@@ -233,53 +217,11 @@ class FileService {
         return false;
       }
 
-      // Request permission
-      final PermissionState permission = await PhotoManager.requestPermissionExtend();
-      if (!permission.isAuth) {
-        debugPrint('Permission to access photo gallery denied');
-        return false;
-      }
-
-      // Save to gallery
-      final AssetEntity? asset = await PhotoManager.editor.saveVideo(File(filePath), title: path.basename(filePath));
-
-      return asset != null;
+      // Use the platform-specific implementation
+      return await PhotoGalleryService.saveVideoToGallery(filePath);
     } catch (e) {
       debugPrint('Error saving video to photo gallery: $e');
       return false;
-    }
-  }
-
-  /// Get the MIME type of a file based on its extension
-  String? _getMimeType(String filePath) {
-    final extension = path.extension(filePath).toLowerCase();
-
-    switch (extension) {
-      case '.jpg':
-      case '.jpeg':
-        return 'image/jpeg';
-      case '.png':
-        return 'image/png';
-      case '.gif':
-        return 'image/gif';
-      case '.webp':
-        return 'image/webp';
-      case '.bmp':
-        return 'image/bmp';
-      case '.heic':
-        return 'image/heic';
-      case '.mp4':
-        return 'video/mp4';
-      case '.mov':
-        return 'video/quicktime';
-      case '.avi':
-        return 'video/x-msvideo';
-      case '.mkv':
-        return 'video/x-matroska';
-      case '.webm':
-        return 'video/webm';
-      default:
-        return null;
     }
   }
 

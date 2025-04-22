@@ -10,7 +10,6 @@ import 'package:provider/provider.dart';
 import '../models/transfer_models.dart';
 import '../services/crypto_service.dart';
 import '../services/theme_service.dart';
-import '../services/file_service.dart';
 import '../services/hash_service.dart';
 import 'received_files_screen.dart';
 
@@ -251,17 +250,6 @@ class _ReceiveScreenState extends State<ReceiveScreen> with WidgetsBindingObserv
     return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
   }
 
-  // Verify a file against its hash
-  // ignore: unused_element
-  Future<bool> _verifyFile(String filePath, String expectedHash) async {
-    try {
-      return await _hashService.verifyFileHash(filePath, expectedHash);
-    } catch (e) {
-      debugPrint('Error verifying file hash: $e');
-      return false;
-    }
-  }
-
   // Verify text against its hash
   bool _verifyText(String text, String expectedHash) {
     try {
@@ -309,8 +297,6 @@ class _ReceiveScreenState extends State<ReceiveScreen> with WidgetsBindingObserv
             }
 
             final themeService = Provider.of<ThemeService>(context, listen: false);
-            // ignore: unused_local_variable
-            final fileService = FileService();
 
             // Check if this is a batch transfer (new protocol) or single item (old protocol)
             if (jsonMap.containsKey('protocol') && jsonMap['protocol'].toString().startsWith('toss-v')) {

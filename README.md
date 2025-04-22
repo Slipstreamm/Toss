@@ -113,7 +113,3 @@ Contributions are welcome! Please feel free to submit a pull request or open an 
 ## License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
-
-## Icon Credits
-
-[Paper Waste](https://icons8.com/icon/65653/paper-waste) icon by [Icons8](https://icons8.com)

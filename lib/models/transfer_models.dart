@@ -5,18 +5,23 @@ import 'package:file_picker/file_picker.dart';
 /// Represents the type of content being transferred
 enum TransferItemType { file, text }
 
+/// Represents the file type for preview purposes
+enum FilePreviewType { image, video, audio, pdf, text, other }
+
 /// Represents a single item (file or text) to be transferred
 class TransferItem {
   final String id; // Unique identifier for the item
   final TransferItemType type;
   final String name; // File name or description for text
-  final String? path; // Local file path (for files only)
+  String? path; // Local file path (for files only)
   final int size; // Size in bytes
   final Uint8List? bytes; // File bytes (used during transfer)
   final String? textContent; // Text content (for text items only)
   final String? hash; // SHA256 hash of the item's content
   bool isSelected; // Whether this item is selected for transfer
   bool isVerified; // Whether the item has been verified against its hash
+  bool isSaved; // Whether the file has been saved to storage
+  FilePreviewType? previewType; // Type of file for preview purposes
 
   TransferItem({
     required this.id,
@@ -29,7 +34,45 @@ class TransferItem {
     this.hash,
     this.isSelected = true,
     this.isVerified = false,
-  });
+    this.isSaved = false,
+    this.previewType,
+  }) {
+    // Determine preview type if not provided
+    if (previewType == null && type == TransferItemType.file) {
+      previewType = _determineFileType(name);
+    }
+  }
+
+  /// Determine the file type based on extension
+  FilePreviewType _determineFileType(String fileName) {
+    // Extract extension manually to avoid path package issues
+    final fileExtension = fileName.contains('.') ? fileName.substring(fileName.lastIndexOf('.')).toLowerCase() : '';
+
+    // Image files
+    if (['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.heic'].contains(fileExtension)) {
+      return FilePreviewType.image;
+    }
+    // Video files
+    else if (['.mp4', '.mov', '.avi', '.mkv', '.webm', '.flv', '.wmv', '.3gp'].contains(fileExtension)) {
+      return FilePreviewType.video;
+    }
+    // Audio files
+    else if (['.mp3', '.wav', '.ogg', '.m4a', '.aac', '.flac'].contains(fileExtension)) {
+      return FilePreviewType.audio;
+    }
+    // PDF files
+    else if (fileExtension == '.pdf') {
+      return FilePreviewType.pdf;
+    }
+    // Text files
+    else if (['.txt', '.md', '.json', '.xml', '.html', '.css', '.js', '.dart', '.java', '.py', '.c', '.cpp'].contains(fileExtension)) {
+      return FilePreviewType.text;
+    }
+    // Other files
+    else {
+      return FilePreviewType.other;
+    }
+  }
 
   /// Create a TransferItem from a PlatformFile
   factory TransferItem.fromPlatformFile(PlatformFile file) {
@@ -40,6 +83,7 @@ class TransferItem {
       path: file.path,
       size: file.size,
       isSelected: true,
+      isSaved: false,
     );
   }
 
@@ -52,6 +96,7 @@ class TransferItem {
       size: utf8.encode(text).length,
       textContent: text,
       isSelected: true,
+      isSaved: true, // Text messages are considered saved by default
     );
   }
 
@@ -91,6 +136,38 @@ class TransferItem {
       hash: json['hash'],
       isSelected: true,
       isVerified: false, // Will be verified after receiving
+      isSaved: false,
+    );
+  }
+
+  /// Create a copy of this TransferItem with updated properties
+  TransferItem copyWith({
+    String? id,
+    TransferItemType? type,
+    String? name,
+    String? path,
+    int? size,
+    Uint8List? bytes,
+    String? textContent,
+    String? hash,
+    bool? isSelected,
+    bool? isVerified,
+    bool? isSaved,
+    FilePreviewType? previewType,
+  }) {
+    return TransferItem(
+      id: id ?? this.id,
+      type: type ?? this.type,
+      name: name ?? this.name,
+      path: path ?? this.path,
+      size: size ?? this.size,
+      bytes: bytes ?? this.bytes,
+      textContent: textContent ?? this.textContent,
+      hash: hash ?? this.hash,
+      isSelected: isSelected ?? this.isSelected,
+      isVerified: isVerified ?? this.isVerified,
+      isSaved: isSaved ?? this.isSaved,
+      previewType: previewType ?? this.previewType,
     );
   }
 }

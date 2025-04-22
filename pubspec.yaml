@@ -47,6 +47,11 @@ dependencies:
   encrypt: ^5.0.3 # Added for AES encryption
   flutter_secure_storage: ^10.0.0-beta.4 # Added for secure storage of encryption keys
   flutter_secure_storage_linux: ^2.0.1
+  photo_manager: ^2.8.1 # Added for saving to photo gallery on mobile
+  open_file: ^3.3.2 # Added for opening files with default app
+  universal_file_viewer: ^0.1.1 # Added for file preview functionality
+  video_player: ^2.8.2 # Added for video preview support
+  chewie: ^1.7.5 # Added for video player UI
 
 dev_dependencies:
   flutter_test:

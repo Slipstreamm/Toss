@@ -12,6 +12,7 @@ import '../services/crypto_service.dart';
 import '../services/theme_service.dart';
 import '../services/file_service.dart';
 import '../services/hash_service.dart';
+import 'received_files_screen.dart';
 
 class ReceiveScreen extends StatefulWidget {
   const ReceiveScreen({super.key, required this.onStatusUpdate});
@@ -251,6 +252,7 @@ class _ReceiveScreenState extends State<ReceiveScreen> with WidgetsBindingObserv
   }
 
   // Verify a file against its hash
+  // ignore: unused_element
   Future<bool> _verifyFile(String filePath, String expectedHash) async {
     try {
       return await _hashService.verifyFileHash(filePath, expectedHash);
@@ -307,6 +309,7 @@ class _ReceiveScreenState extends State<ReceiveScreen> with WidgetsBindingObserv
             }
 
             final themeService = Provider.of<ThemeService>(context, listen: false);
+            // ignore: unused_local_variable
             final fileService = FileService();
 
             // Check if this is a batch transfer (new protocol) or single item (old protocol)
@@ -420,61 +423,40 @@ class _ReceiveScreenState extends State<ReceiveScreen> with WidgetsBindingObserv
                   }
                 } else if (item.type == TransferItemType.file && item.bytes != null) {
                   // Handle file data
-                  try {
-                    final savedFilePath = await fileService.saveFile(item.name, item.bytes!);
-                    bool isVerified = false;
+                  bool isVerified = false;
 
-                    // Check if we have a hash for this item
-                    final storedHashes = _receivedHashes[batchId];
-                    if (storedHashes != null && storedHashes.containsKey(item.id)) {
-                      final expectedHash = storedHashes[item.id]!;
-                      isVerified = await _verifyFile(savedFilePath, expectedHash);
-
-                      if (isVerified) {
-                        widget.onStatusUpdate('Verified file: ${item.name} - Hash matches');
-                      } else {
-                        widget.onStatusUpdate('WARNING: File verification failed for ${item.name} - Hash mismatch!');
-                      }
-                    } else if (item.hash != null) {
-                      // If the item has a hash included directly
-                      isVerified = await _verifyFile(savedFilePath, item.hash!);
-
-                      if (isVerified) {
-                        widget.onStatusUpdate('Verified file: ${item.name} - Hash matches');
-                      } else {
-                        widget.onStatusUpdate('WARNING: File verification failed for ${item.name} - Hash mismatch!');
-                      }
-                    }
-
-                    // Add to received items list with the saved path
-                    if (_isMounted) {
-                      setState(() {
-                        _receivedItems.add(
-                          TransferItem(
-                            id: item.id,
-                            type: item.type,
-                            name: item.name,
-                            path: savedFilePath,
-                            size: item.size,
-                            hash: item.hash ?? storedHashes?[item.id],
-                            isSelected: true,
-                            isVerified: isVerified,
-                          ),
-                        );
-                      });
-                    }
-
-                    widget.onStatusUpdate('Received file: ${item.name} - Saved to: $savedFilePath');
-
-                    // Show confirmation dialog if enabled in settings
-                    if (_isMounted && themeService.settings.confirmBeforeReceiving) {
-                      _showFileReceivedDialog(item.name, savedFilePath, isVerified);
-                    }
-                  } catch (e) {
-                    if (_isMounted) {
-                      widget.onStatusUpdate('Error saving file ${item.name}: $e');
-                    }
+                  // Check if we have a hash for this item
+                  final storedHashes = _receivedHashes[batchId];
+                  if (storedHashes != null && storedHashes.containsKey(item.id)) {
+                    // We'll verify the hash later when the file is saved
+                    widget.onStatusUpdate('Hash information received for file: ${item.name}');
+                  } else if (item.hash != null) {
+                    // We'll verify the hash later when the file is saved
+                    widget.onStatusUpdate('Hash information included with file: ${item.name}');
                   }
+
+                  // Add to received items list without saving yet
+                  if (_isMounted) {
+                    setState(() {
+                      _receivedItems.add(
+                        TransferItem(
+                          id: item.id,
+                          type: item.type,
+                          name: item.name,
+                          bytes: item.bytes,
+                          size: item.size,
+                          hash: item.hash ?? storedHashes?[item.id],
+                          isSelected: true,
+                          isVerified: isVerified,
+                          isSaved: false,
+                        ),
+                      );
+                    });
+                  }
+
+                  widget.onStatusUpdate('Received file: ${item.name} (${_formatFileSize(item.size)})');
+
+                  // We'll show the files in the ReceivedFilesScreen later
                 }
               }
 
@@ -509,36 +491,26 @@ class _ReceiveScreenState extends State<ReceiveScreen> with WidgetsBindingObserv
                 String fileContentBase64 = jsonMap['data'];
                 Uint8List fileBytes = base64Decode(fileContentBase64);
 
-                try {
-                  final savedFilePath = await fileService.saveFile(fileName, fileBytes);
+                // Create a TransferItem and add to received items without saving yet
+                final fileItem = TransferItem(
+                  id: DateTime.now().millisecondsSinceEpoch.toString(),
+                  type: TransferItemType.file,
+                  name: fileName,
+                  bytes: fileBytes,
+                  size: fileBytes.length,
+                  isSelected: true,
+                  isSaved: false,
+                );
 
-                  // Create a TransferItem and add to received items
-                  final fileItem = TransferItem(
-                    id: DateTime.now().millisecondsSinceEpoch.toString(),
-                    type: TransferItemType.file,
-                    name: fileName,
-                    path: savedFilePath,
-                    size: fileBytes.length,
-                    isSelected: true,
-                  );
-
-                  if (_isMounted) {
-                    setState(() {
-                      _receivedItems.add(fileItem);
-                    });
-                  }
-
-                  widget.onStatusUpdate('Received file: $fileName - Saved to: $savedFilePath');
-
-                  // Show confirmation dialog if enabled in settings
-                  if (_isMounted && themeService.settings.confirmBeforeReceiving) {
-                    _showFileReceivedDialog(fileName, savedFilePath);
-                  }
-                } catch (e) {
-                  if (_isMounted) {
-                    widget.onStatusUpdate('Error saving file: $e');
-                  }
+                if (_isMounted) {
+                  setState(() {
+                    _receivedItems.add(fileItem);
+                  });
                 }
+
+                widget.onStatusUpdate('Received file: $fileName (${_formatFileSize(fileBytes.length)})');
+
+                // We'll show the files in the ReceivedFilesScreen later
               }
             }
 
@@ -546,6 +518,18 @@ class _ReceiveScreenState extends State<ReceiveScreen> with WidgetsBindingObserv
             clientSubscription?.cancel();
             client.close();
             buffer.clear(); // Clear buffer for next potential message (if any)
+
+            // Show the received files screen if we have received files
+            if (_receivedItems.isNotEmpty && _isMounted) {
+              // Use a post-frame callback to avoid BuildContext across async gap
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (_isMounted) {
+                  Navigator.of(
+                    context,
+                  ).push(MaterialPageRoute(builder: (context) => ReceivedFilesScreen(receivedItems: _receivedItems, onStatusUpdate: widget.onStatusUpdate)));
+                }
+              });
+            }
           }
         } catch (e) {
           // Handle potential JSON decoding errors or incomplete data
@@ -575,59 +559,6 @@ class _ReceiveScreenState extends State<ReceiveScreen> with WidgetsBindingObserv
         client.destroy();
       },
       cancelOnError: true,
-    );
-  }
-
-  // Show dialog when a file is received
-  void _showFileReceivedDialog(String fileName, String filePath, [bool isVerified = false]) {
-    // Double-check that we're still mounted before showing dialog
-    if (!_isMounted) return;
-
-    showDialog(
-      context: context,
-      builder:
-          (context) => AlertDialog(
-            title: const Text('File Received'),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('File: $fileName'),
-                const SizedBox(height: 8),
-                Text('Saved to: $filePath', style: const TextStyle(fontSize: 12)),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Icon(isVerified ? Icons.verified_user : Icons.warning, color: isVerified ? Colors.green : Colors.orange, size: 16),
-                    const SizedBox(width: 4),
-                    Text(
-                      isVerified ? 'Verified: SHA256 hash matches' : 'Warning: SHA256 hash verification failed',
-                      style: TextStyle(fontSize: 12, color: isVerified ? Colors.green : Colors.orange, fontWeight: FontWeight.bold),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-            actions: [
-              TextButton(onPressed: () => Navigator.pop(context), child: const Text('Close')),
-              if (Platform.isAndroid || Platform.isIOS)
-                TextButton(
-                  onPressed: () {
-                    Navigator.pop(context);
-                    FileService().shareFile(filePath);
-                  },
-                  child: const Text('Share'),
-                ),
-              if (Platform.isWindows || Platform.isMacOS || Platform.isLinux)
-                TextButton(
-                  onPressed: () {
-                    Navigator.pop(context);
-                    FileService().openContainingDirectory(filePath);
-                  },
-                  child: const Text('Show in Folder'),
-                ),
-            ],
-          ),
     );
   }
 
@@ -785,11 +716,19 @@ class _ReceiveScreenState extends State<ReceiveScreen> with WidgetsBindingObserv
                         trailing: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            if (item.type == TransferItemType.file && item.path != null)
+                            if (item.type == TransferItemType.file)
                               IconButton(
-                                icon: const Icon(Icons.folder_open, size: 20),
-                                tooltip: 'Open containing folder',
-                                onPressed: () => FileService().openContainingDirectory(item.path!),
+                                icon: const Icon(Icons.visibility, size: 20),
+                                tooltip: 'View file',
+                                onPressed: () {
+                                  // Create a copy of the item to avoid issues with list modifications
+                                  final itemCopy = item;
+                                  Navigator.of(context).push(
+                                    MaterialPageRoute(
+                                      builder: (context) => ReceivedFilesScreen(receivedItems: [itemCopy], onStatusUpdate: widget.onStatusUpdate),
+                                    ),
+                                  );
+                                },
                               ),
                             if (item.type == TransferItemType.text && item.textContent != null)
                               IconButton(

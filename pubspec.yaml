@@ -34,18 +34,19 @@ dependencies:
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
-  file_picker: ^8.0.6 # Added for file selection
+  file_picker: ^10.1.2 # Added for file selection
   image_picker: ^1.0.7 # Added for picking images from gallery/camera
   network_info_plus: ^6.0.0 # Added for getting local IP
   shared_preferences: ^2.2.2 # Added for storing settings
   provider: ^6.1.1 # Added for state management
   path_provider: ^2.1.2 # Added for accessing standard file locations
-  share_plus: ^7.2.1 # Added for sharing files on mobile
+  share_plus: ^11.0.0 # Added for sharing files on mobile
   path: ^1.9.1
   flutter_launcher_icons: ^0.14.3
   crypto: ^3.0.6 # Added for SHA256 hash calculation
   encrypt: ^5.0.3 # Added for AES encryption
-  flutter_secure_storage: ^9.0.0 # Added for secure storage of encryption keys
+  flutter_secure_storage: ^10.0.0-beta.4 # Added for secure storage of encryption keys
+  flutter_secure_storage_linux: ^2.0.1
 
 dev_dependencies:
   flutter_test:
@@ -60,7 +61,7 @@ dev_dependencies:
   # rules and activating additional ones.
   flutter_lints: ^5.0.0
   golden_toolkit: ^0.15.0
-  alchemist: ^0.7.0
+  alchemist: ^0.11.0
 
 flutter_launcher_icons:
   # Android

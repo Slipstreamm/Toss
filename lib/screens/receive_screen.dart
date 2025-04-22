@@ -1,9 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:network_info_plus/network_info_plus.dart';
 import 'package:provider/provider.dart';
 
@@ -245,12 +245,7 @@ class _ReceiveScreenState extends State<ReceiveScreen> with WidgetsBindingObserv
           // Look for a potential end-of-JSON marker, very basic
           if (receivedData.trim().endsWith('}')) {
             var jsonMap = jsonDecode(receivedData);
-            String fileName = jsonMap['filename'];
-            String fileContentBase64 = jsonMap['data'];
-            Uint8List fileBytes = base64Decode(fileContentBase64);
-
-            // Save the file using FileService
-            final fileService = FileService();
+            String contentType = jsonMap['type'] ?? 'file'; // Default to 'file' for backward compatibility
 
             // Check if widget is still mounted before accessing context
             if (!_isMounted) {
@@ -261,21 +256,44 @@ class _ReceiveScreenState extends State<ReceiveScreen> with WidgetsBindingObserv
 
             final themeService = Provider.of<ThemeService>(context, listen: false);
 
-            try {
-              final savedFilePath = await fileService.saveFile(fileName, fileBytes);
+            if (contentType == 'text') {
+              // Handle text data
+              String textData = jsonMap['data'];
 
               // Check if widget is still mounted before updating status
               if (_isMounted) {
-                widget.onStatusUpdate('Received file: $fileName - Saved to: $savedFilePath');
+                widget.onStatusUpdate('Received text message (${textData.length} characters)');
 
-                // Show confirmation dialog if enabled in settings
+                // Show text received dialog if enabled in settings
                 if (_isMounted && themeService.settings.confirmBeforeReceiving) {
-                  _showFileReceivedDialog(fileName, savedFilePath);
+                  _showTextReceivedDialog(textData);
                 }
               }
-            } catch (e) {
-              if (_isMounted) {
-                widget.onStatusUpdate('Error saving file: $e');
+            } else {
+              // Handle file data
+              String fileName = jsonMap['filename'];
+              String fileContentBase64 = jsonMap['data'];
+              Uint8List fileBytes = base64Decode(fileContentBase64);
+
+              // Save the file using FileService
+              final fileService = FileService();
+
+              try {
+                final savedFilePath = await fileService.saveFile(fileName, fileBytes);
+
+                // Check if widget is still mounted before updating status
+                if (_isMounted) {
+                  widget.onStatusUpdate('Received file: $fileName - Saved to: $savedFilePath');
+
+                  // Show confirmation dialog if enabled in settings
+                  if (_isMounted && themeService.settings.confirmBeforeReceiving) {
+                    _showFileReceivedDialog(fileName, savedFilePath);
+                  }
+                }
+              } catch (e) {
+                if (_isMounted) {
+                  widget.onStatusUpdate('Error saving file: $e');
+                }
               }
             }
 
@@ -347,62 +365,103 @@ class _ReceiveScreenState extends State<ReceiveScreen> with WidgetsBindingObserv
     );
   }
 
+  // Show dialog when text is received
+  void _showTextReceivedDialog(String textData) {
+    // Double-check that we're still mounted before showing dialog
+    if (!_isMounted) return;
+
+    showDialog(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            title: const Text('Text Message Received'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Message (${textData.length} characters):', style: const TextStyle(fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                Container(
+                  constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.3),
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(border: Border.all(color: Colors.grey), borderRadius: BorderRadius.circular(4)),
+                  child: SingleChildScrollView(child: Text(textData)),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(context), child: const Text('Close')),
+              TextButton(
+                onPressed: () {
+                  Clipboard.setData(ClipboardData(text: textData));
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Text copied to clipboard')));
+                },
+                child: const Text('Copy to Clipboard'),
+              ),
+            ],
+          ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(16.0),
-      child: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            Text('Receive Files', style: Theme.of(context).textTheme.headlineMedium),
-            const SizedBox(height: 20),
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Text('Receive Content', style: Theme.of(context).textTheme.headlineMedium),
+              const SizedBox(height: 20),
 
-            Row(
-              children: [
-                Expanded(child: Text('Your IP Address: ${_localIpAddress ?? "Loading..."}', style: Theme.of(context).textTheme.titleMedium)),
-                IconButton(
-                  icon: const Icon(Icons.refresh),
-                  tooltip: 'Refresh IP Address',
-                  onPressed: () {
-                    setState(() {
-                      _localIpAddress = 'Refreshing...';
-                    });
-                    _getLocalIpAddress();
-                  },
-                ),
-              ],
-            ),
-            const SizedBox(height: 20),
+              Row(
+                children: [
+                  Expanded(child: Text('Your IP Address: ${_localIpAddress ?? "Loading..."}', style: Theme.of(context).textTheme.titleMedium)),
+                  IconButton(
+                    icon: const Icon(Icons.refresh),
+                    tooltip: 'Refresh IP Address',
+                    onPressed: () {
+                      setState(() {
+                        _localIpAddress = 'Refreshing...';
+                      });
+                      _getLocalIpAddress();
+                    },
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
 
-            Text('Receive Files (Act as Server)', style: Theme.of(context).textTheme.titleLarge),
-            const SizedBox(height: 10),
+              Text('Receive Files & Text (Act as Server)', style: Theme.of(context).textTheme.titleLarge),
+              const SizedBox(height: 10),
 
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                ElevatedButton.icon(
-                  icon: const Icon(Icons.play_arrow),
-                  label: const Text('Start Listening'),
-                  onPressed: _isListening ? null : _startServer, // Disable if already listening
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
-                ),
-                ElevatedButton.icon(
-                  icon: const Icon(Icons.stop),
-                  label: const Text('Stop Listening'),
-                  onPressed: !_isListening ? null : _stopServer, // Disable if not listening
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-                ),
-              ],
-            ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  ElevatedButton.icon(
+                    icon: const Icon(Icons.play_arrow),
+                    label: const Text('Start Listening'),
+                    onPressed: _isListening ? null : _startServer, // Disable if already listening
+                    style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+                  ),
+                  ElevatedButton.icon(
+                    icon: const Icon(Icons.stop),
+                    label: const Text('Stop Listening'),
+                    onPressed: !_isListening ? null : _stopServer, // Disable if not listening
+                    style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                  ),
+                ],
+              ),
 
-            const SizedBox(height: 20),
+              const SizedBox(height: 20),
 
-            Text(
-              'Status: ${_isListening ? "Listening" : "Not Listening"}',
-              style: TextStyle(color: _isListening ? Colors.green : Colors.red, fontWeight: FontWeight.bold),
-            ),
-          ],
+              Text(
+                'Status: ${_isListening ? "Listening" : "Not Listening"}',
+                style: TextStyle(color: _isListening ? Colors.green : Colors.red, fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
         ),
       ),
     );

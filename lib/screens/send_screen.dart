@@ -4,6 +4,8 @@ import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:path/path.dart' as path;
 import 'package:provider/provider.dart';
 
@@ -20,7 +22,9 @@ class SendScreen extends StatefulWidget {
 
 class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
   PlatformFile? _selectedFile;
+  String? _textToSend;
   final TextEditingController _ipController = TextEditingController();
+  final TextEditingController _textInputController = TextEditingController();
   Socket? _clientSocket;
   String? _ipError;
 
@@ -47,6 +51,7 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
     WidgetsBinding.instance.removeObserver(this);
     _cleanupResources();
     _ipController.dispose();
+    _textInputController.dispose();
     super.dispose();
   }
 
@@ -58,6 +63,7 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
     }
   }
 
+  // Method to pick a file using file picker
   Future<void> _pickFile() async {
     try {
       FilePickerResult? result = await FilePicker.platform.pickFiles();
@@ -81,8 +87,134 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
     }
   }
 
+  // Method to pick an image from gallery
+  Future<void> _pickImageFromGallery() async {
+    try {
+      final ImagePicker picker = ImagePicker();
+      final XFile? image = await picker.pickImage(source: ImageSource.gallery);
+
+      // Check if still mounted before updating state
+      if (!_isMounted) return;
+
+      if (image != null) {
+        // Create a PlatformFile from the XFile to maintain compatibility
+        final File imageFile = File(image.path);
+        final String fileName = path.basename(image.path);
+        final int fileSize = await imageFile.length();
+
+        final platformFile = PlatformFile(
+          path: image.path,
+          name: fileName,
+          size: fileSize,
+          bytes: null, // We don't need the bytes here
+        );
+
+        setState(() {
+          _selectedFile = platformFile;
+        });
+        widget.onStatusUpdate('Image selected: $fileName');
+      } else {
+        // User canceled the picker
+        widget.onStatusUpdate('Image selection cancelled.');
+      }
+    } catch (e) {
+      if (_isMounted) {
+        widget.onStatusUpdate('Error picking image: $e');
+      }
+    }
+  }
+
+  // Show file source selection menu
+  void _showFileSourceMenu() {
+    showModalBottomSheet(
+      context: context,
+      builder: (BuildContext context) {
+        return SafeArea(
+          child: Wrap(
+            children: <Widget>[
+              ListTile(
+                leading: const Icon(Icons.photo_library),
+                title: const Text('Photo Gallery'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _pickImageFromGallery();
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.attach_file),
+                title: const Text('File Picker'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _pickFile();
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.text_fields),
+                title: const Text('Text Input'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _showTextInputDialog();
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  // Show text input dialog
+  Future<void> _showTextInputDialog() async {
+    _textInputController.clear(); // Clear previous text
+
+    // Double-check that we're still mounted before showing dialog
+    if (!_isMounted) return;
+
+    final result = await showDialog<String>(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            title: const Text('Enter Text to Send'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: _textInputController,
+                  decoration: const InputDecoration(hintText: 'Type or paste text here', border: OutlineInputBorder()),
+                  maxLines: 5,
+                  minLines: 3,
+                ),
+                const SizedBox(height: 10),
+                ElevatedButton.icon(
+                  icon: const Icon(Icons.paste),
+                  label: const Text('Paste from Clipboard'),
+                  onPressed: () async {
+                    final clipboardData = await Clipboard.getData(Clipboard.kTextPlain);
+                    if (clipboardData?.text != null) {
+                      _textInputController.text = clipboardData!.text!;
+                    }
+                  },
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+              TextButton(onPressed: () => Navigator.pop(context, _textInputController.text), child: const Text('OK')),
+            ],
+          ),
+    );
+
+    if (result != null && result.isNotEmpty && _isMounted) {
+      setState(() {
+        _textToSend = result;
+        _selectedFile = null; // Clear any selected file
+      });
+      widget.onStatusUpdate('Text prepared for sending: ${result.length} characters');
+    }
+  }
+
   // Show confirmation dialog before sending file
-  Future<bool> _showSendConfirmationDialog(String fileName, String targetIp) async {
+  Future<bool> _showSendConfirmationDialog(String contentName, String targetIp, bool isText) async {
     // Double-check that we're still mounted before showing dialog
     if (!_isMounted) return false;
 
@@ -95,7 +227,7 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Send file: $fileName'),
+                    Text('Send ${isText ? 'text' : 'file'}: $contentName'),
                     const SizedBox(height: 8),
                     Text('To: $targetIp', style: const TextStyle(fontWeight: FontWeight.bold)),
                   ],
@@ -117,8 +249,8 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
   }
 
   Future<void> _sendFile() async {
-    if (_selectedFile == null) {
-      widget.onStatusUpdate('Please select a file first.');
+    if (_selectedFile == null && _textToSend == null) {
+      widget.onStatusUpdate('Please select a file or enter text first.');
       return;
     }
 
@@ -157,17 +289,18 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
     final themeService = Provider.of<ThemeService>(context, listen: false);
     final clientPort = themeService.settings.clientPort;
 
-    final fileName = path.basename(_selectedFile!.path!);
+    final bool isTextMode = _textToSend != null;
+    final String contentName = isTextMode ? 'Text message' : path.basename(_selectedFile!.path!);
 
     // Check if confirmation is required
     if (themeService.settings.confirmBeforeSending) {
       // Check if widget is still mounted before showing dialog
       if (!_isMounted) return;
 
-      final confirmed = await _showSendConfirmationDialog(fileName, ipAddress);
+      final confirmed = await _showSendConfirmationDialog(contentName, ipAddress, isTextMode);
       if (!confirmed) {
         if (_isMounted) {
-          widget.onStatusUpdate('File sending cancelled.');
+          widget.onStatusUpdate('${isTextMode ? 'Text' : 'File'} sending cancelled.');
         }
         return;
       }
@@ -187,14 +320,21 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
         return;
       }
 
-      widget.onStatusUpdate('Connected to $ipAddress:$clientPort. Sending file...');
+      widget.onStatusUpdate('Connected to $ipAddress:$clientPort. Sending ${isTextMode ? 'text' : 'file'}...');
 
-      // Read file content
-      final fileBytes = await File(_selectedFile!.path!).readAsBytes();
-      final fileContentBase64 = base64Encode(fileBytes);
+      // Prepare JSON payload based on content type
+      String payload;
 
-      // Prepare JSON payload
-      final payload = jsonEncode({'filename': fileName, 'data': fileContentBase64});
+      if (isTextMode) {
+        // For text data
+        payload = jsonEncode({'type': 'text', 'data': _textToSend});
+      } else {
+        // For file data
+        final fileBytes = await File(_selectedFile!.path!).readAsBytes();
+        final fileContentBase64 = base64Encode(fileBytes);
+
+        payload = jsonEncode({'type': 'file', 'filename': contentName, 'data': fileContentBase64});
+      }
 
       // Check if still mounted before continuing
       if (!_isMounted) {
@@ -209,11 +349,18 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
 
       // Check if widget is still mounted before updating status
       if (_isMounted) {
-        widget.onStatusUpdate('File "${_selectedFile!.name}" sent successfully to $ipAddress.');
-        // Optionally clear selection after sending
-        // setState(() {
-        //   _selectedFile = null;
-        // });
+        if (isTextMode) {
+          widget.onStatusUpdate('Text message sent successfully to $ipAddress.');
+          setState(() {
+            _textToSend = null;
+          });
+        } else {
+          widget.onStatusUpdate('File "${_selectedFile!.name}" sent successfully to $ipAddress.');
+          // Optionally clear selection after sending
+          // setState(() {
+          //   _selectedFile = null;
+          // });
+        }
       }
     } catch (e) {
       if (_isMounted) {
@@ -227,58 +374,83 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(16.0),
-      child: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            Text('Send Files', style: Theme.of(context).textTheme.headlineMedium),
-            const SizedBox(height: 20),
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Text('Send Content', style: Theme.of(context).textTheme.headlineMedium),
+              const SizedBox(height: 20),
 
-            ElevatedButton.icon(icon: const Icon(Icons.attach_file), label: const Text('Pick File to Send'), onPressed: _pickFile),
-
-            if (_selectedFile != null) Padding(padding: const EdgeInsets.symmetric(vertical: 8.0), child: Text('Selected: ${_selectedFile!.name}')),
-
-            const SizedBox(height: 10),
-
-            TextField(
-              controller: _ipController,
-              decoration: InputDecoration(
-                labelText: 'Enter Target IP Address (without port)',
-                hintText: 'e.g., 192.168.1.100',
-                helperText: 'Enter only the IP address - port is configured in settings',
-                border: const OutlineInputBorder(),
-                errorText: _ipError,
+              ElevatedButton.icon(
+                icon: const Icon(Icons.attach_file),
+                label: const Text('Select Content to Send'),
+                onPressed: _showFileSourceMenu,
+                style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12)),
               ),
-              keyboardType: TextInputType.number, // Suggest numeric keyboard
-              onChanged: (value) {
-                // Update state to re-evaluate button enabled state
-                setState(() {
-                  // Clear error when user types
-                  if (_ipError != null) {
-                    _ipError = null;
-                  }
-                  // No need to do anything else, just triggering setState
-                  // will cause the build method to re-evaluate the button's onPressed
-                });
-              },
-            ),
 
-            const SizedBox(height: 20),
+              if (_selectedFile != null)
+                Padding(padding: const EdgeInsets.symmetric(vertical: 8.0), child: Text('Selected file: ${_selectedFile!.name}'))
+              else if (_textToSend != null)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Text to send (${_textToSend!.length} characters):', style: const TextStyle(fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 4),
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(border: Border.all(color: Colors.grey), borderRadius: BorderRadius.circular(4)),
+                        child: Text(_textToSend!.length > 100 ? '${_textToSend!.substring(0, 100)}...' : _textToSend!, style: const TextStyle(fontSize: 14)),
+                      ),
+                      TextButton(onPressed: _showTextInputDialog, child: const Text('Edit Text')),
+                    ],
+                  ),
+                ),
 
-            Center(
-              child: ElevatedButton.icon(
-                icon: const Icon(Icons.send),
-                label: const Text('Send File'),
-                onPressed:
-                    (_selectedFile == null || _ipController.text.isEmpty)
-                        ? null // Disable if no file or IP
-                        : _sendFile,
-                style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 15)),
+              const SizedBox(height: 10),
+
+              TextField(
+                controller: _ipController,
+                decoration: InputDecoration(
+                  labelText: 'Enter Target IP Address (without port)',
+                  hintText: 'e.g., 192.168.1.100',
+                  helperText: 'Enter only the IP address - port is configured in settings',
+                  border: const OutlineInputBorder(),
+                  errorText: _ipError,
+                ),
+                keyboardType: TextInputType.number, // Suggest numeric keyboard
+                onChanged: (value) {
+                  // Update state to re-evaluate button enabled state
+                  setState(() {
+                    // Clear error when user types
+                    if (_ipError != null) {
+                      _ipError = null;
+                    }
+                    // No need to do anything else, just triggering setState
+                    // will cause the build method to re-evaluate the button's onPressed
+                  });
+                },
               ),
-            ),
-          ],
+
+              const SizedBox(height: 20),
+
+              Center(
+                child: ElevatedButton.icon(
+                  icon: const Icon(Icons.send),
+                  label: const Text('Send'),
+                  onPressed:
+                      ((_selectedFile == null && _textToSend == null) || _ipController.text.isEmpty)
+                          ? null // Disable if no content or IP
+                          : _sendFile,
+                  style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 15)),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

@@ -35,6 +35,7 @@ dependencies:
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
   file_picker: ^8.0.6 # Added for file selection
+  image_picker: ^1.0.7 # Added for picking images from gallery/camera
   network_info_plus: ^6.0.0 # Added for getting local IP
   shared_preferences: ^2.2.2 # Added for storing settings
   provider: ^6.1.1 # Added for state management

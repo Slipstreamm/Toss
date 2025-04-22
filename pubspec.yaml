@@ -42,6 +42,7 @@ dependencies:
   path_provider: ^2.1.2 # Added for accessing standard file locations
   share_plus: ^7.2.1 # Added for sharing files on mobile
   path: ^1.9.1
+  flutter_launcher_icons: ^0.14.3
 
 dev_dependencies:
   flutter_test:

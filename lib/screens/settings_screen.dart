@@ -3,6 +3,9 @@ import 'package:provider/provider.dart';
 import '../services/theme_service.dart';
 import '../models/settings_model.dart';
 import 'package:file_picker/file_picker.dart';
+import 'dart:async';
+import 'package:package_info_plus/package_info_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -225,6 +228,46 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
+  // Get app version dynamically using PackageInfo
+  Future<String> _getAppVersion() async {
+    try {
+      final info = await PackageInfo.fromPlatform();
+      final version = '${info.version}+${info.buildNumber}';
+      return version;
+    } catch (e) {
+      return 'Error';
+    }
+  }
+
+  // Launch URL in browser
+  Future<void> _launchUrl(String urlString) async {
+    final Uri url = Uri.parse(urlString);
+    try {
+      if (await canLaunchUrl(url)) {
+        await launchUrl(url, mode: LaunchMode.externalApplication);
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Could not open $urlString')));
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error opening link: ${e.toString()}')));
+      }
+    }
+  }
+
+  // Show licenses page
+  void _showLicensesPage(BuildContext context) {
+    showLicensePage(
+      context: context,
+      applicationName: 'Toss',
+      applicationVersion: 'v1.2.0+1', // Hard-coded version for now
+      applicationIcon: const Icon(Icons.app_shortcut, size: 48),
+      applicationLegalese: '© ${DateTime.now().year} Hunter Lee',
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -394,11 +437,61 @@ class _SettingsScreenState extends State<SettingsScreen> {
               _buildSettingsCard(
                 context: context,
                 title: 'About',
-                icon: Icons.info,
+                icon: Icons.info_outline,
                 children: [
-                  const ListTile(title: Text('Toss'), subtitle: Text('Version 1.0.0')),
-                  const Divider(),
-                  const ListTile(title: Text('A simple app for sharing files over LAN'), subtitle: Text('Created with Flutter')),
+                  const ListTile(title: Text('Toss'), subtitle: Text('A simple app for sharing files and text over LAN'), leading: Icon(Icons.app_shortcut)),
+                  FutureBuilder<String>(
+                    future: _getAppVersion(),
+                    builder: (context, snapshot) {
+                      return ListTile(
+                        title: const Text('Version'),
+                        subtitle: Text(
+                          snapshot.connectionState == ConnectionState.waiting
+                              ? 'Loading...'
+                              : snapshot.hasError
+                              ? 'Error loading version'
+                              : snapshot.data ?? 'Unknown',
+                        ),
+                        leading: const Icon(Icons.info_outline),
+                      );
+                    },
+                  ),
+                  ListTile(
+                    title: const Text('Developer'),
+                    subtitle: const Text('Hunter Lee / Slipstreamm'),
+                    leading: const Icon(Icons.person),
+                    onTap: () => _launchUrl('https://github.com/Slipstreamm'),
+                  ),
+                  ListTile(
+                    title: const Text('GitHub Repository'),
+                    subtitle: const Text('View source code on GitHub'),
+                    leading: const Icon(Icons.code),
+                    onTap: () => _launchUrl('https://github.com/Slipstreamm/Toss'),
+                  ),
+                  ListTile(
+                    title: const Text('Website'),
+                    subtitle: const Text('Visit our website'),
+                    leading: const Icon(Icons.language),
+                    onTap: () => _launchUrl('https://openotp.lol/toss'),
+                  ),
+                  ListTile(
+                    title: const Text('Privacy Policy'),
+                    subtitle: const Text('View our privacy policy'),
+                    leading: const Icon(Icons.privacy_tip),
+                    onTap: () => _launchUrl('https://openotp.lol/toss/privacy'),
+                  ),
+                  ListTile(
+                    title: const Text('Help & Support'),
+                    subtitle: const Text('Get help with using the app'),
+                    leading: const Icon(Icons.help),
+                    onTap: () => _launchUrl('https://openotp.lol/toss/support'),
+                  ),
+                  ListTile(
+                    title: const Text('Open Source Licenses'),
+                    subtitle: const Text('View licenses for third-party libraries'),
+                    leading: const Icon(Icons.source),
+                    onTap: () => _showLicensesPage(context),
+                  ),
                 ],
               ),
             ],

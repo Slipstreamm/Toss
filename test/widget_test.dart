@@ -7,7 +7,7 @@
 
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:filesharingapp/main.dart';
+import 'package:toss/main.dart';
 
 void main() {
   testWidgets('App loads and displays title smoke test', (WidgetTester tester) async {
@@ -15,7 +15,7 @@ void main() {
     await tester.pumpWidget(const FileSharingApp());
 
     // Verify that the app bar title is displayed.
-    expect(find.text('LAN File Share'), findsOneWidget);
+    expect(find.text('Toss'), findsOneWidget);
 
     // Verify that the initial status text is present (can be improved)
     expect(find.textContaining('Status:'), findsOneWidget);

@@ -90,12 +90,12 @@ BEGIN
         BLOCK "040904e4"
         BEGIN
             VALUE "CompanyName", "lol.openotp.toss" "\0"
-            VALUE "FileDescription", "filesharingapp" "\0"
+            VALUE "FileDescription", "Toss" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "filesharingapp" "\0"
+            VALUE "InternalName", "Toss" "\0"
             VALUE "LegalCopyright", "Copyright (C) 2025 lol.openotp.toss. All rights reserved." "\0"
-            VALUE "OriginalFilename", "filesharingapp.exe" "\0"
-            VALUE "ProductName", "filesharingapp" "\0"
+            VALUE "OriginalFilename", "Toss.exe" "\0"
+            VALUE "ProductName", "Toss" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END

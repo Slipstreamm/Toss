@@ -1,11 +1,11 @@
 {
-    "name": "filesharingapp",
-    "short_name": "filesharingapp",
+    "name": "Toss",
+    "short_name": "Toss",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
     "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "description": "Toss is a simple app for sharing files over LAN",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

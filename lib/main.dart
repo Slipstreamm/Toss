@@ -24,7 +24,7 @@ class FileSharingApp extends StatelessWidget {
     final themeService = Provider.of<ThemeService>(context);
 
     return MaterialApp(
-      title: 'LAN File Share',
+      title: 'Toss',
       theme: themeService.getLightTheme(),
       darkTheme: themeService.getDarkTheme(),
       themeMode: themeService.themeMode,

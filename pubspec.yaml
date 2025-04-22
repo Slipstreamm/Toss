@@ -51,6 +51,7 @@ dependencies:
   universal_file_viewer: ^0.1.1 # Added for file preview functionality
   video_player: ^2.8.2 # Added for video preview support
   chewie: ^1.7.5 # Added for video player UI
+  photo_manager: ^3.6.4
 
 dev_dependencies:
   flutter_test:

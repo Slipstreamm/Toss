@@ -1,7 +1,5 @@
 # Toss - Simple LAN File Sharing
 
-![Toss Logo](assets/icons/icon.png)
-
 Toss is a lightweight, cross-platform application designed for quick and easy file sharing over Local Area Networks (LAN). Share files between your devices without the need for cloud services or internet connectivity.
 
 ## Features
@@ -115,7 +113,3 @@ Contributions are welcome! Please feel free to submit a pull request or open an 
 ## License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
-
-## Icon Credits
-
-[Paper Waste](https://icons8.com/icon/65653/paper-waste) icon by [Icons8](https://icons8.com)

@@ -127,4 +127,20 @@ class SettingsService {
     await _saveSettings(updatedSettings);
     return updatedSettings;
   }
+
+  // Update encryption enabled setting
+  Future<SettingsModel> updateEnableEncryption(bool enable) async {
+    final settings = await loadSettings();
+    final updatedSettings = settings.copyWith(enableEncryption: enable);
+    await _saveSettings(updatedSettings);
+    return updatedSettings;
+  }
+
+  // Update encryption PIN
+  Future<SettingsModel> updateEncryptionPin(String pin) async {
+    final settings = await loadSettings();
+    final updatedSettings = settings.copyWith(encryptionPin: pin);
+    await _saveSettings(updatedSettings);
+    return updatedSettings;
+  }
 }

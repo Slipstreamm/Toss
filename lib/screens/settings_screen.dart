@@ -15,6 +15,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final TextEditingController _serverPortController = TextEditingController();
   final TextEditingController _clientPortController = TextEditingController();
   final TextEditingController _saveLocationController = TextEditingController();
+  final TextEditingController _encryptionPinController = TextEditingController();
 
   @override
   void initState() {
@@ -24,6 +25,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _serverPortController.text = themeService.settings.serverPort.toString();
     _clientPortController.text = themeService.settings.clientPort.toString();
     _saveLocationController.text = themeService.settings.defaultSaveLocation;
+    _encryptionPinController.text = themeService.settings.encryptionPin;
   }
 
   @override
@@ -31,6 +33,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _serverPortController.dispose();
     _clientPortController.dispose();
     _saveLocationController.dispose();
+    _encryptionPinController.dispose();
     super.dispose();
   }
 
@@ -307,6 +310,41 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     subtitle: Text(themeService.settings.defaultSaveLocation.isEmpty ? 'Not set' : themeService.settings.defaultSaveLocation),
                     leading: const Icon(Icons.save),
                     onTap: _pickDirectory,
+                  ),
+                ],
+              ),
+
+              // Security section
+              _buildSettingsCard(
+                context: context,
+                title: 'Security',
+                icon: Icons.security,
+                children: [
+                  SwitchListTile(
+                    title: const Text('Enable Encryption'),
+                    subtitle: const Text('Encrypt file transfers with AES-256'),
+                    value: themeService.settings.enableEncryption,
+                    onChanged: (value) {
+                      themeService.updateEnableEncryption(value);
+                    },
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                    child: TextField(
+                      controller: _encryptionPinController,
+                      decoration: const InputDecoration(
+                        labelText: 'Encryption PIN/Passphrase',
+                        border: OutlineInputBorder(),
+                        helperText: 'Used for encrypting and decrypting data. Keep it secure!',
+                      ),
+                      obscureText: true,
+                      enabled: themeService.settings.enableEncryption,
+                      onChanged: (value) {
+                        if (value.isNotEmpty) {
+                          themeService.updateEncryptionPin(value);
+                        }
+                      },
+                    ),
                   ),
                 ],
               ),

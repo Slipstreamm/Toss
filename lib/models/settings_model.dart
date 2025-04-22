@@ -405,6 +405,8 @@ class SettingsModel {
   final ThemeStyleType themeStyleType; // Theme style (Default, Forest, Sunset, Violet, Custom)
   final CustomThemeModel? lightCustomTheme; // Custom theme for light mode
   final CustomThemeModel? darkCustomTheme; // Custom theme for dark mode
+  final bool enableEncryption; // Whether to encrypt data transfers
+  final String encryptionPin; // PIN/passphrase for encryption
 
   /// Default constructor with default values
   const SettingsModel({
@@ -419,6 +421,8 @@ class SettingsModel {
     this.themeStyleType = ThemeStyleType.defaultStyle, // Default theme style
     this.lightCustomTheme, // Custom light theme (null by default)
     this.darkCustomTheme, // Custom dark theme (null by default)
+    this.enableEncryption = false, // Encryption disabled by default
+    this.encryptionPin = '123456', // Default PIN
   });
 
   /// Create a copy with some values replaced
@@ -434,6 +438,8 @@ class SettingsModel {
     ThemeStyleType? themeStyleType,
     CustomThemeModel? lightCustomTheme,
     CustomThemeModel? darkCustomTheme,
+    bool? enableEncryption,
+    String? encryptionPin,
   }) {
     return SettingsModel(
       themeMode: themeMode ?? this.themeMode,
@@ -447,6 +453,8 @@ class SettingsModel {
       themeStyleType: themeStyleType ?? this.themeStyleType,
       lightCustomTheme: lightCustomTheme ?? this.lightCustomTheme,
       darkCustomTheme: darkCustomTheme ?? this.darkCustomTheme,
+      enableEncryption: enableEncryption ?? this.enableEncryption,
+      encryptionPin: encryptionPin ?? this.encryptionPin,
     );
   }
 
@@ -464,6 +472,8 @@ class SettingsModel {
       'themeStyleType': themeStyleType.index,
       'lightCustomTheme': lightCustomTheme?.toJson(),
       'darkCustomTheme': darkCustomTheme?.toJson(),
+      'enableEncryption': enableEncryption,
+      'encryptionPin': encryptionPin,
     };
   }
 
@@ -500,6 +510,8 @@ class SettingsModel {
       themeStyleType: json['themeStyleType'] != null ? ThemeStyleType.values[json['themeStyleType']] : ThemeStyleType.defaultStyle,
       lightCustomTheme: lightCustomTheme,
       darkCustomTheme: darkCustomTheme,
+      enableEncryption: json['enableEncryption'] ?? false,
+      encryptionPin: json['encryptionPin'] ?? '123456',
     );
   }
 

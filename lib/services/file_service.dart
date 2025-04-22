@@ -4,6 +4,7 @@ import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import '../models/settings_model.dart';
+import '../models/transfer_models.dart';
 import 'settings_service.dart';
 
 class FileService {
@@ -60,6 +61,29 @@ class FileService {
     return path.join(savePath, fileName);
   }
 
+  /// Save multiple files at once
+  Future<List<String>> saveFiles(List<TransferItem> items) async {
+    final List<String> savedPaths = [];
+    final settings = await _settingsService.loadSettings();
+
+    for (final item in items) {
+      if (item.type == TransferItemType.file && item.bytes != null) {
+        try {
+          final filePath = await _getFileSavePath(item.name, settings);
+          final file = File(filePath);
+          await file.writeAsBytes(item.bytes!);
+          savedPaths.add(filePath);
+          debugPrint('File saved to: $filePath');
+        } catch (e) {
+          debugPrint('Error saving file ${item.name}: $e');
+          // Continue with other files even if one fails
+        }
+      }
+    }
+
+    return savedPaths;
+  }
+
   /// Share a file (primarily for mobile platforms)
   Future<void> shareFile(String filePath) async {
     try {
@@ -73,6 +97,25 @@ class FileService {
       }
     } catch (e) {
       debugPrint('Error sharing file: $e');
+      rethrow;
+    }
+  }
+
+  /// Share multiple files (primarily for mobile platforms)
+  Future<void> shareFiles(List<String> filePaths) async {
+    try {
+      if (Platform.isAndroid || Platform.isIOS) {
+        final files = filePaths.map((path) => XFile(path)).toList();
+        final result = await Share.shareXFiles(files);
+        debugPrint('Share result: ${result.status}');
+      } else {
+        // On desktop, just show the file location of the first file
+        if (filePaths.isNotEmpty) {
+          await openContainingDirectory(filePaths.first);
+        }
+      }
+    } catch (e) {
+      debugPrint('Error sharing files: $e');
       rethrow;
     }
   }

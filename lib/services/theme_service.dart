@@ -436,6 +436,26 @@ class ThemeService extends ChangeNotifier {
     }
   }
 
+  // Update encryption enabled setting
+  Future<void> updateEnableEncryption(bool enable) async {
+    try {
+      _settings = await _settingsService.updateEnableEncryption(enable);
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Error updating encryption enabled: $e');
+    }
+  }
+
+  // Update encryption PIN
+  Future<void> updateEncryptionPin(String pin) async {
+    try {
+      _settings = await _settingsService.updateEncryptionPin(pin);
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Error updating encryption PIN: $e');
+    }
+  }
+
   // Get light theme data based on theme style
   ThemeData getLightTheme() {
     switch (_settings.themeStyleType) {

@@ -9,6 +9,9 @@ import 'package:image_picker/image_picker.dart';
 import 'package:path/path.dart' as path;
 import 'package:provider/provider.dart';
 
+import '../models/transfer_models.dart';
+import '../services/crypto_service.dart';
+import '../services/hash_service.dart';
 import '../services/theme_service.dart';
 
 class SendScreen extends StatefulWidget {
@@ -21,15 +24,25 @@ class SendScreen extends StatefulWidget {
 }
 
 class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
-  PlatformFile? _selectedFile;
-  String? _textToSend;
+  // List of items to send
+  final List<TransferItem> _itemsToSend = [];
+
   final TextEditingController _ipController = TextEditingController();
   final TextEditingController _textInputController = TextEditingController();
   Socket? _clientSocket;
   String? _ipError;
 
+  // Service for calculating SHA256 hashes
+  final HashService _hashService = HashService();
+
+  // Service for encryption/decryption
+  final CryptoService _cryptoService = CryptoService();
+
   // Flag to track if the widget is mounted
   bool _isMounted = true;
+
+  // Flag to track if a transfer is in progress
+  bool _isTransferring = false;
 
   @override
   void initState() {
@@ -63,19 +76,21 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
     }
   }
 
-  // Method to pick a file using file picker
+  // Method to pick files using file picker
   Future<void> _pickFile() async {
     try {
-      FilePickerResult? result = await FilePicker.platform.pickFiles();
+      FilePickerResult? result = await FilePicker.platform.pickFiles(allowMultiple: true);
 
       // Check if still mounted before updating state
       if (!_isMounted) return;
 
-      if (result != null) {
+      if (result != null && result.files.isNotEmpty) {
         setState(() {
-          _selectedFile = result.files.first;
+          for (final file in result.files) {
+            _itemsToSend.add(TransferItem.fromPlatformFile(file));
+          }
         });
-        widget.onStatusUpdate('File selected: ${_selectedFile!.name}');
+        widget.onStatusUpdate('${result.files.length} file(s) selected');
       } else {
         // User canceled the picker
         widget.onStatusUpdate('File selection cancelled.');
@@ -110,7 +125,7 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
         );
 
         setState(() {
-          _selectedFile = platformFile;
+          _itemsToSend.add(TransferItem.fromPlatformFile(platformFile));
         });
         widget.onStatusUpdate('Image selected: $fileName');
       } else {
@@ -206,15 +221,14 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
 
     if (result != null && result.isNotEmpty && _isMounted) {
       setState(() {
-        _textToSend = result;
-        _selectedFile = null; // Clear any selected file
+        _itemsToSend.add(TransferItem.fromText(result));
       });
       widget.onStatusUpdate('Text prepared for sending: ${result.length} characters');
     }
   }
 
-  // Show confirmation dialog before sending file
-  Future<bool> _showSendConfirmationDialog(String contentName, String targetIp, bool isText) async {
+  // Show confirmation dialog before sending content
+  Future<bool> _showSendConfirmationDialog(List<TransferItem> items, String targetIp) async {
     // Double-check that we're still mounted before showing dialog
     if (!_isMounted) return false;
 
@@ -227,7 +241,28 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Send ${isText ? 'text' : 'file'}: $contentName'),
+                    Text('Send ${items.length} item(s):'),
+                    const SizedBox(height: 8),
+                    Container(
+                      constraints: const BoxConstraints(maxHeight: 150),
+                      child: ListView.builder(
+                        shrinkWrap: true,
+                        itemCount: items.length > 5 ? 5 : items.length,
+                        itemBuilder: (context, index) {
+                          final item = items[index];
+                          return ListTile(
+                            dense: true,
+                            contentPadding: EdgeInsets.zero,
+                            title: Text(item.name, overflow: TextOverflow.ellipsis),
+                            subtitle: Text(
+                              item.type == TransferItemType.file ? 'File: ${_formatFileSize(item.size)}' : 'Text: ${_formatFileSize(item.size)}',
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                    if (items.length > 5) Padding(padding: const EdgeInsets.only(top: 8.0), child: Text('...and ${items.length - 5} more')),
                     const SizedBox(height: 8),
                     Text('To: $targetIp', style: const TextStyle(fontWeight: FontWeight.bold)),
                   ],
@@ -248,9 +283,86 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
     return ipRegex.hasMatch(ip);
   }
 
+  // Format file size to human-readable format
+  String _formatFileSize(int bytes) {
+    if (bytes < 1024) return '$bytes B';
+    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
+    if (bytes < 1024 * 1024 * 1024) return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+    return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
+  }
+
+  // Calculate SHA256 hashes for all items in a batch
+  Future<List<TransferItem>> _calculateHashes(List<TransferItem> items) async {
+    final List<TransferItem> itemsWithHashes = [];
+
+    for (int i = 0; i < items.length; i++) {
+      final item = items[i];
+      String hash;
+
+      if (item.type == TransferItemType.file && item.path != null) {
+        // For files, calculate hash from the file path
+        hash = await _hashService.calculateFileHash(item.path!);
+        widget.onStatusUpdate('Calculated hash for ${item.name}');
+      } else if (item.type == TransferItemType.file && item.bytes != null) {
+        // For files with bytes already loaded
+        hash = _hashService.calculateBytesHash(item.bytes!);
+        widget.onStatusUpdate('Calculated hash for ${item.name}');
+      } else if (item.type == TransferItemType.text && item.textContent != null) {
+        // For text content
+        hash = _hashService.calculateStringHash(item.textContent!);
+        widget.onStatusUpdate('Calculated hash for text message');
+      } else {
+        // Skip items that can't be hashed
+        itemsWithHashes.add(item);
+        continue;
+      }
+
+      // Create a new item with the hash
+      itemsWithHashes.add(
+        TransferItem(
+          id: item.id,
+          type: item.type,
+          name: item.name,
+          path: item.path,
+          size: item.size,
+          bytes: item.bytes,
+          textContent: item.textContent,
+          hash: hash,
+          isSelected: item.isSelected,
+        ),
+      );
+    }
+
+    return itemsWithHashes;
+  }
+
+  // Remove an item from the list
+  void _removeItem(String id) {
+    setState(() {
+      _itemsToSend.removeWhere((item) => item.id == id);
+    });
+    widget.onStatusUpdate('Item removed');
+  }
+
+  // Clear all items
+  void _clearItems() {
+    setState(() {
+      _itemsToSend.clear();
+    });
+    widget.onStatusUpdate('All items cleared');
+  }
+
   Future<void> _sendFile() async {
-    if (_selectedFile == null && _textToSend == null) {
-      widget.onStatusUpdate('Please select a file or enter text first.');
+    if (_itemsToSend.isEmpty) {
+      widget.onStatusUpdate('Please select at least one file or enter text first.');
+      return;
+    }
+
+    // Get only selected items
+    final selectedItems = _itemsToSend.where((item) => item.isSelected).toList();
+
+    if (selectedItems.isEmpty) {
+      widget.onStatusUpdate('Please select at least one item to send.');
       return;
     }
 
@@ -289,18 +401,18 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
     final themeService = Provider.of<ThemeService>(context, listen: false);
     final clientPort = themeService.settings.clientPort;
 
-    final bool isTextMode = _textToSend != null;
-    final String contentName = isTextMode ? 'Text message' : path.basename(_selectedFile!.path!);
+    // Generate a unique batch ID that will be used for both hash and data transfers
+    final batchId = DateTime.now().millisecondsSinceEpoch.toString();
 
     // Check if confirmation is required
     if (themeService.settings.confirmBeforeSending) {
       // Check if widget is still mounted before showing dialog
       if (!_isMounted) return;
 
-      final confirmed = await _showSendConfirmationDialog(contentName, ipAddress, isTextMode);
+      final confirmed = await _showSendConfirmationDialog(selectedItems, ipAddress);
       if (!confirmed) {
         if (_isMounted) {
-          widget.onStatusUpdate('${isTextMode ? 'Text' : 'File'} sending cancelled.');
+          widget.onStatusUpdate('Transfer cancelled.');
         }
         return;
       }
@@ -309,9 +421,30 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
     // Check if widget is still mounted before continuing
     if (!_isMounted) return;
 
+    // Set transfer in progress
+    setState(() {
+      _isTransferring = true;
+    });
+
+    widget.onStatusUpdate('Calculating SHA256 hashes for all items...');
+
+    // Calculate hashes for all items
+    final itemsWithHashes = await _calculateHashes(selectedItems);
+
+    // Create a hash-only batch to send first
+    final hashOnlyItems =
+        itemsWithHashes.map((item) => TransferItem(id: item.id, type: item.type, name: item.name, size: item.size, hash: item.hash, isSelected: true)).toList();
+
+    final hashBatch = TransferBatch.hashOnly(batchId, hashOnlyItems);
+
+    // Convert hash batch to JSON
+    final hashPayload = jsonEncode(hashBatch.toJson());
+
     widget.onStatusUpdate('Connecting to $ipAddress:$clientPort...');
 
     try {
+      // First connection to send hashes
+      widget.onStatusUpdate('Sending hash information...');
       _clientSocket = await Socket.connect(ipAddress, clientPort, timeout: const Duration(seconds: 5));
 
       // Check if widget is still mounted before updating status
@@ -320,20 +453,78 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
         return;
       }
 
-      widget.onStatusUpdate('Connected to $ipAddress:$clientPort. Sending ${isTextMode ? 'text' : 'file'}...');
+      // Send hash data
+      _clientSocket!.write(hashPayload);
+      await _clientSocket!.flush(); // Ensure data is sent
+      _clientSocket!.close(); // Close connection after sending
+      _clientSocket = null;
 
-      // Prepare JSON payload based on content type
-      String payload;
+      widget.onStatusUpdate('Hash information sent. Preparing to send actual data...');
 
-      if (isTextMode) {
-        // For text data
-        payload = jsonEncode({'type': 'text', 'data': _textToSend});
+      // Wait a moment to ensure the receiver has processed the hash information
+      await Future.delayed(const Duration(milliseconds: 500));
+
+      // Second connection to send actual data
+      _clientSocket = await Socket.connect(ipAddress, clientPort, timeout: const Duration(seconds: 5));
+
+      // Check if widget is still mounted before updating status
+      if (!_isMounted) {
+        _cleanupResources();
+        return;
+      }
+
+      widget.onStatusUpdate('Connected to $ipAddress:$clientPort. Sending ${selectedItems.length} item(s)...');
+
+      // Load file data for all file items
+      for (int i = 0; i < itemsWithHashes.length; i++) {
+        final item = itemsWithHashes[i];
+
+        if (item.type == TransferItemType.file && item.path != null && item.bytes == null) {
+          // Load file bytes
+          final fileBytes = await File(item.path!).readAsBytes();
+          // Update the item with the bytes
+          itemsWithHashes[i] = TransferItem(
+            id: item.id,
+            type: item.type,
+            name: item.name,
+            path: item.path,
+            size: item.size,
+            bytes: fileBytes,
+            hash: item.hash,
+            isSelected: item.isSelected,
+          );
+        }
+      }
+
+      // Check if encryption is enabled
+      final bool useEncryption = themeService.settings.enableEncryption;
+      String dataPayload;
+
+      if (useEncryption) {
+        widget.onStatusUpdate('Encrypting data with AES-256...');
+
+        // Prepare the batch with loaded data
+        final dataBatch = TransferBatch(id: batchId, items: itemsWithHashes);
+
+        // Convert batch to JSON
+        final batchJson = jsonEncode(dataBatch.toJson());
+
+        // Encrypt the batch data
+        final encryptedData = await _cryptoService.encrypt(batchJson, themeService.settings.encryptionPin);
+
+        // Create an encrypted batch
+        final encryptedBatch = TransferBatch.encrypted(batchId, encryptedData);
+
+        // Convert encrypted batch to JSON
+        dataPayload = jsonEncode(encryptedBatch.toJson());
+
+        widget.onStatusUpdate('Data encrypted successfully.');
       } else {
-        // For file data
-        final fileBytes = await File(_selectedFile!.path!).readAsBytes();
-        final fileContentBase64 = base64Encode(fileBytes);
+        // Prepare the batch with loaded data (unencrypted)
+        final dataBatch = TransferBatch(id: batchId, items: itemsWithHashes);
 
-        payload = jsonEncode({'type': 'file', 'filename': contentName, 'data': fileContentBase64});
+        // Convert batch to JSON
+        dataPayload = jsonEncode(dataBatch.toJson());
       }
 
       // Check if still mounted before continuing
@@ -343,24 +534,19 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
       }
 
       // Send data
-      _clientSocket!.write(payload);
+      _clientSocket!.write(dataPayload);
       await _clientSocket!.flush(); // Ensure data is sent
       _clientSocket!.close(); // Close connection after sending
 
       // Check if widget is still mounted before updating status
       if (_isMounted) {
-        if (isTextMode) {
-          widget.onStatusUpdate('Text message sent successfully to $ipAddress.');
-          setState(() {
-            _textToSend = null;
-          });
-        } else {
-          widget.onStatusUpdate('File "${_selectedFile!.name}" sent successfully to $ipAddress.');
-          // Optionally clear selection after sending
-          // setState(() {
-          //   _selectedFile = null;
-          // });
-        }
+        final encryptionStatus = useEncryption ? ' (AES-256 encrypted)' : '';
+        widget.onStatusUpdate('Successfully sent ${selectedItems.length} item(s) to $ipAddress with SHA256 verification$encryptionStatus.');
+
+        // Optionally clear items after sending
+        // setState(() {
+        //   _itemsToSend.clear();
+        // });
       }
     } catch (e) {
       if (_isMounted) {
@@ -369,6 +555,13 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
       _cleanupResources(); // Ensure socket is closed on error
     } finally {
       _clientSocket = null; // Reset client socket
+
+      // Reset transfer state
+      if (_isMounted) {
+        setState(() {
+          _isTransferring = false;
+        });
+      }
     }
   }
 
@@ -389,29 +582,70 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
                 Text('Send Content', style: Theme.of(context).textTheme.headlineMedium),
                 const SizedBox(height: 20),
 
-                ElevatedButton.icon(
-                  icon: const Icon(Icons.attach_file),
-                  label: const Text('Select Content to Send'),
-                  onPressed: _showFileSourceMenu,
-                  style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12)),
+                Row(
+                  children: [
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        icon: const Icon(Icons.attach_file),
+                        label: const Text('Add Content'),
+                        onPressed: _isTransferring ? null : _showFileSourceMenu,
+                        style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12)),
+                      ),
+                    ),
+                    if (_itemsToSend.isNotEmpty)
+                      IconButton(icon: const Icon(Icons.clear_all), tooltip: 'Clear all items', onPressed: _isTransferring ? null : _clearItems),
+                  ],
                 ),
 
-                if (_selectedFile != null)
-                  Padding(padding: const EdgeInsets.symmetric(vertical: 8.0), child: Text('Selected file: ${_selectedFile!.name}'))
-                else if (_textToSend != null)
+                if (_itemsToSend.isNotEmpty)
                   Padding(
                     padding: const EdgeInsets.symmetric(vertical: 8.0),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Text to send (${_textToSend!.length} characters):', style: const TextStyle(fontWeight: FontWeight.bold)),
-                        const SizedBox(height: 4),
+                        Row(children: [Text('Selected Items (${_itemsToSend.length}):', style: const TextStyle(fontWeight: FontWeight.bold))]),
+                        const SizedBox(height: 8),
                         Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(border: Border.all(color: Colors.grey), borderRadius: BorderRadius.circular(4)),
-                          child: Text(_textToSend!.length > 100 ? '${_textToSend!.substring(0, 100)}...' : _textToSend!, style: const TextStyle(fontSize: 14)),
+                          constraints: const BoxConstraints(maxHeight: 200),
+                          decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade300), borderRadius: BorderRadius.circular(4)),
+                          child: ListView.builder(
+                            shrinkWrap: true,
+                            itemCount: _itemsToSend.length,
+                            itemBuilder: (context, index) {
+                              final item = _itemsToSend[index];
+                              return ListTile(
+                                dense: true,
+                                title: Text(item.name, overflow: TextOverflow.ellipsis),
+                                subtitle: Text(
+                                  item.type == TransferItemType.file ? 'File: ${_formatFileSize(item.size)}' : 'Text: ${_formatFileSize(item.size)}',
+                                ),
+                                leading: Checkbox(
+                                  value: item.isSelected,
+                                  onChanged:
+                                      _isTransferring
+                                          ? null
+                                          : (value) {
+                                            setState(() {
+                                              _itemsToSend[index] = TransferItem(
+                                                id: item.id,
+                                                type: item.type,
+                                                name: item.name,
+                                                path: item.path,
+                                                size: item.size,
+                                                textContent: item.textContent,
+                                                isSelected: value ?? true,
+                                              );
+                                            });
+                                          },
+                                ),
+                                trailing: IconButton(
+                                  icon: const Icon(Icons.delete_outline, size: 20),
+                                  onPressed: _isTransferring ? null : () => _removeItem(item.id),
+                                ),
+                              );
+                            },
+                          ),
                         ),
-                        TextButton(onPressed: _showTextInputDialog, child: const Text('Edit Text')),
                       ],
                     ),
                   ),
@@ -448,8 +682,8 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
                     icon: const Icon(Icons.send),
                     label: const Text('Send'),
                     onPressed:
-                        ((_selectedFile == null && _textToSend == null) || _ipController.text.isEmpty)
-                            ? null // Disable if no content or IP
+                        (_itemsToSend.isEmpty || _ipController.text.isEmpty || _isTransferring)
+                            ? null // Disable if no content, IP is empty, or transfer in progress
                             : _sendFile,
                     style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 15)),
                   ),

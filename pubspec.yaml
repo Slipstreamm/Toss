@@ -43,6 +43,9 @@ dependencies:
   share_plus: ^7.2.1 # Added for sharing files on mobile
   path: ^1.9.1
   flutter_launcher_icons: ^0.14.3
+  crypto: ^3.0.6 # Added for SHA256 hash calculation
+  encrypt: ^5.0.3 # Added for AES encryption
+  flutter_secure_storage: ^9.0.0 # Added for secure storage of encryption keys
 
 dev_dependencies:
   flutter_test:

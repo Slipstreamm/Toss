@@ -144,4 +144,4 @@ flutter:
 dependency_overrides:
   # We're using conditional imports in the code to handle platform differences
   # This ensures photo_manager is only used on mobile platforms
-  photo_manager: ^2.8.1
+  photo_manager: ^3.0.0

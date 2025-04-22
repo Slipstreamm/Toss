@@ -196,6 +196,7 @@ class _ReceivedFilesScreenState extends State<ReceivedFilesScreen> {
         ],
       ),
       bottomNavigationBar: BottomAppBar(
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: [

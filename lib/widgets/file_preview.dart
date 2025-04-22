@@ -116,17 +116,41 @@ class _FilePreviewState extends State<FilePreview> {
   }
 
   Widget _buildImagePreview() {
-    if (widget.item.path == null) {
-      return const Center(child: Text('Image path is missing'));
+    // If we have a path, use it
+    if (widget.item.path != null) {
+      return widget.fullscreen
+          ? InteractiveViewer(minScale: 0.5, maxScale: 3.0, child: Image.file(File(widget.item.path!), fit: BoxFit.contain))
+          : Image.file(File(widget.item.path!), fit: BoxFit.cover);
     }
 
-    return widget.fullscreen
-        ? InteractiveViewer(minScale: 0.5, maxScale: 3.0, child: Image.file(File(widget.item.path!), fit: BoxFit.contain))
-        : Image.file(File(widget.item.path!), fit: BoxFit.cover);
+    // If we have bytes but no path, use memory image
+    if (widget.item.bytes != null) {
+      return widget.fullscreen
+          ? InteractiveViewer(minScale: 0.5, maxScale: 3.0, child: Image.memory(widget.item.bytes!, fit: BoxFit.contain))
+          : Image.memory(widget.item.bytes!, fit: BoxFit.cover);
+    }
+
+    // If we have neither path nor bytes
+    return const Center(child: Text('Image data is missing'));
   }
 
   Widget _buildVideoPreview() {
     if (_chewieController == null) {
+      // If we have bytes but no controller yet, show a placeholder with play button
+      if (widget.item.bytes != null) {
+        return Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.video_file, size: 72, color: Colors.red),
+              const SizedBox(height: 16),
+              Text(widget.item.name, style: const TextStyle(fontSize: 16)),
+              const SizedBox(height: 16),
+              const Text('Save the file to play video', style: TextStyle(fontSize: 14)),
+            ],
+          ),
+        );
+      }
       return const Center(child: Text('Video could not be loaded'));
     }
 
@@ -148,6 +172,21 @@ class _FilePreviewState extends State<FilePreview> {
 
   Widget _buildPdfPreview() {
     if (widget.item.path == null) {
+      // If we have bytes but no path, show a placeholder
+      if (widget.item.bytes != null) {
+        return Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.picture_as_pdf, size: 72, color: Colors.red),
+              const SizedBox(height: 16),
+              Text(widget.item.name, style: const TextStyle(fontSize: 16)),
+              const SizedBox(height: 16),
+              const Text('Save the file to view PDF', style: TextStyle(fontSize: 14)),
+            ],
+          ),
+        );
+      }
       return const Center(child: Text('PDF path is missing'));
     }
 
@@ -156,6 +195,26 @@ class _FilePreviewState extends State<FilePreview> {
 
   Widget _buildTextPreview() {
     if (widget.item.path == null) {
+      // If we have bytes but no path, try to show the text content
+      if (widget.item.bytes != null) {
+        try {
+          final textContent = String.fromCharCodes(widget.item.bytes!);
+          return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Text(textContent));
+        } catch (e) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.description, size: 72, color: Colors.blue),
+                const SizedBox(height: 16),
+                Text(widget.item.name, style: const TextStyle(fontSize: 16)),
+                const SizedBox(height: 16),
+                const Text('Save the file to view text content', style: TextStyle(fontSize: 14)),
+              ],
+            ),
+          );
+        }
+      }
       return const Center(child: Text('Text file path is missing'));
     }
 
@@ -205,31 +264,34 @@ class FilePreviewThumbnail extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (item.type != TransferItemType.file) {
-      return _buildGenericThumbnail(Icons.text_snippet, Colors.blue);
-    }
-
     Widget thumbnail;
-    switch (item.previewType) {
-      case FilePreviewType.image:
-        thumbnail = _buildImageThumbnail();
-        break;
-      case FilePreviewType.video:
-        thumbnail = _buildGenericThumbnail(Icons.video_file, Colors.red);
-        break;
-      case FilePreviewType.audio:
-        thumbnail = _buildGenericThumbnail(Icons.audio_file, Colors.orange);
-        break;
-      case FilePreviewType.pdf:
-        thumbnail = _buildGenericThumbnail(Icons.picture_as_pdf, Colors.red);
-        break;
-      case FilePreviewType.text:
-        thumbnail = _buildGenericThumbnail(Icons.description, Colors.blue);
-        break;
-      case FilePreviewType.other:
-      default:
-        thumbnail = _buildGenericThumbnail(Icons.insert_drive_file, Colors.grey);
-        break;
+
+    if (item.type == TransferItemType.text) {
+      // Handle text items
+      thumbnail = _buildGenericThumbnail(Icons.text_snippet, Colors.blue);
+    } else {
+      // Handle file items
+      switch (item.previewType) {
+        case FilePreviewType.image:
+          thumbnail = _buildImageThumbnail();
+          break;
+        case FilePreviewType.video:
+          thumbnail = _buildGenericThumbnail(Icons.video_file, Colors.red);
+          break;
+        case FilePreviewType.audio:
+          thumbnail = _buildGenericThumbnail(Icons.audio_file, Colors.orange);
+          break;
+        case FilePreviewType.pdf:
+          thumbnail = _buildGenericThumbnail(Icons.picture_as_pdf, Colors.red);
+          break;
+        case FilePreviewType.text:
+          thumbnail = _buildGenericThumbnail(Icons.description, Colors.blue);
+          break;
+        case FilePreviewType.other:
+        default:
+          thumbnail = _buildGenericThumbnail(Icons.insert_drive_file, Colors.grey);
+          break;
+      }
     }
 
     return GestureDetector(
@@ -239,17 +301,30 @@ class FilePreviewThumbnail extends StatelessWidget {
   }
 
   Widget _buildImageThumbnail() {
-    if (item.path == null) {
-      return _buildGenericThumbnail(Icons.image, Colors.green);
+    // If we have a path, use it
+    if (item.path != null) {
+      return Image.file(
+        File(item.path!),
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) {
+          return _buildGenericThumbnail(Icons.broken_image, Colors.red);
+        },
+      );
     }
 
-    return Image.file(
-      File(item.path!),
-      fit: BoxFit.cover,
-      errorBuilder: (context, error, stackTrace) {
-        return _buildGenericThumbnail(Icons.broken_image, Colors.red);
-      },
-    );
+    // If we have bytes but no path, use memory image
+    if (item.bytes != null) {
+      return Image.memory(
+        item.bytes!,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) {
+          return _buildGenericThumbnail(Icons.broken_image, Colors.red);
+        },
+      );
+    }
+
+    // If we have neither path nor bytes
+    return _buildGenericThumbnail(Icons.image, Colors.green);
   }
 
   Widget _buildGenericThumbnail(IconData icon, Color color) {

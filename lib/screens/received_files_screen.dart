@@ -10,8 +10,9 @@ import '../widgets/save_file_dialog.dart';
 class ReceivedFilesScreen extends StatefulWidget {
   final List<TransferItem> receivedItems;
   final Function(String) onStatusUpdate;
+  final VoidCallback? onClose;
 
-  const ReceivedFilesScreen({super.key, required this.receivedItems, required this.onStatusUpdate});
+  const ReceivedFilesScreen({super.key, required this.receivedItems, required this.onStatusUpdate, this.onClose});
 
   @override
   State<ReceivedFilesScreen> createState() => _ReceivedFilesScreenState();
@@ -30,6 +31,8 @@ class _ReceivedFilesScreenState extends State<ReceivedFilesScreen> {
   @override
   void dispose() {
     _pageController.dispose();
+    // Call onClose callback if provided
+    widget.onClose?.call();
     super.dispose();
   }
 
@@ -171,12 +174,16 @@ class _ReceivedFilesScreenState extends State<ReceivedFilesScreen> {
                     padding: const EdgeInsets.symmetric(horizontal: 4),
                     child: Column(
                       children: [
-                        FilePreviewThumbnail(
-                          item: item,
-                          size: 70,
-                          onTap: () {
-                            _pageController.animateToPage(index, duration: const Duration(milliseconds: 300), curve: Curves.easeInOut);
-                          },
+                        SizedBox(
+                          width: 70,
+                          height: 70,
+                          child: FilePreviewThumbnail(
+                            item: item,
+                            size: 70,
+                            onTap: () {
+                              _pageController.animateToPage(index, duration: const Duration(milliseconds: 300), curve: Curves.easeInOut);
+                            },
+                          ),
                         ),
                         const SizedBox(height: 4),
                         Container(

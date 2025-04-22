@@ -413,12 +413,21 @@ class _ReceiveScreenState extends State<ReceiveScreen> with WidgetsBindingObserv
 
                   // Check if we have a hash for this item
                   final storedHashes = _receivedHashes[batchId];
+                  String? fileHash;
+
                   if (storedHashes != null && storedHashes.containsKey(item.id)) {
-                    // We'll verify the hash later when the file is saved
+                    fileHash = storedHashes[item.id];
                     widget.onStatusUpdate('Hash information received for file: ${item.name}');
                   } else if (item.hash != null) {
-                    // We'll verify the hash later when the file is saved
+                    fileHash = item.hash;
                     widget.onStatusUpdate('Hash information included with file: ${item.name}');
+                  }
+
+                  // Verify the hash if we have one
+                  if (fileHash != null && item.bytes != null) {
+                    final calculatedHash = _hashService.calculateBytesHash(item.bytes!);
+                    isVerified = (calculatedHash == fileHash);
+                    widget.onStatusUpdate('File hash verification: ${isVerified ? 'Success' : 'Failed'}');
                   }
 
                   // Add to received items list without saving yet
@@ -510,9 +519,24 @@ class _ReceiveScreenState extends State<ReceiveScreen> with WidgetsBindingObserv
               // Use a post-frame callback to avoid BuildContext across async gap
               WidgetsBinding.instance.addPostFrameCallback((_) {
                 if (_isMounted) {
-                  Navigator.of(
-                    context,
-                  ).push(MaterialPageRoute(builder: (context) => ReceivedFilesScreen(receivedItems: _receivedItems, onStatusUpdate: widget.onStatusUpdate)));
+                  // Don't show text dialog if we're showing the received files screen
+                  // The text will be visible in the screen
+
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder:
+                          (context) => ReceivedFilesScreen(
+                            receivedItems: _receivedItems,
+                            onStatusUpdate: widget.onStatusUpdate,
+                            onClose: () {
+                              // Update state when the screen is closed
+                              setState(() {
+                                _isReceiving = false;
+                              });
+                            },
+                          ),
+                    ),
+                  );
                 }
               });
             }
@@ -676,7 +700,7 @@ class _ReceiveScreenState extends State<ReceiveScreen> with WidgetsBindingObserv
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text('Received Items (${_receivedItems.length}):', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                    IconButton(icon: const Icon(Icons.clear_all), tooltip: 'Clear received items list', onPressed: _isReceiving ? null : _clearReceivedItems),
+                    IconButton(icon: const Icon(Icons.clear_all), tooltip: 'Clear received items list', onPressed: _clearReceivedItems),
                   ],
                 ),
                 const SizedBox(height: 8),

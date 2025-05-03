@@ -89,7 +89,7 @@ jobs:
       - name: Install apt dependencies
         run: |
           sudo apt-get update
-          sudo apt install -y clang cmake curl git ninja-build pkg-config unzip xz-utils zip libgtk-3-dev liblzma-dev libsecret-1-dev
+          sudo apt install -y clang cmake curl git ninja-build pkg-config unzip xz-utils zip libgtk-3-dev liblzma-dev libsecret-1-dev fuse libfuse2
 
       - name: Fix flutter SDK folder permission
         run: git config --global --add safe.directory /tmp/flutter/--
@@ -122,7 +122,7 @@ jobs:
             '[Desktop Entry]' \
             'Type=Application' \
             'Name=Toss' \
-            'Exec=toss' \
+            'Exec=Exec=usr/bin/toss' \
             'Icon=toss' \
             'Categories=Utility;' > AppDir/toss.desktop
 
